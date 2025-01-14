@@ -5,13 +5,22 @@
 	>
 		<!-- send click events back to caller -->
 		<img
-			v-if="exists"
+			v-if="exists && !hasAnimation"
 			class="gallery-texture-image"
-			:src="imageURL"
+			ref="imageRef"
 			style="aspect-ratio: 1"
 			@error="textureNotFound"
 			@click="$emit('click')"
+			:src="imageURL"
 			lazy-src="https://database.faithfulpack.net/images/bot/loading.gif"
+		/>
+		<gallery-animation
+			v-else-if="exists && hasAnimation"
+			class="gallery-texture-image"
+			:src="imageURL"
+			:mcmeta="animation"
+			:isTiled="imageURL.includes('_flow')"
+			@click="$emit('click')"
 		/>
 		<div v-else class="not-done">
 			<span style="height: 100%" />
@@ -23,10 +32,18 @@
 	</div>
 </template>
 
-<script>
+<script lang="ts">
+/* global settings */
+import axios from "axios";
+
+import GalleryAnimation from "./gallery-animation.vue";
+
 // separate component to track state more easily
 export default {
-	name: "gallery-image",
+	name: "gallery-image", 
+	components: {
+		GalleryAnimation,
+	},
 	props: {
 		src: {
 			type: String,
@@ -51,7 +68,10 @@ export default {
 	data() {
 		return {
 			exists: true,
-			imageURL: "",
+			imageURL: this.src,
+			imageRef: null as HTMLImageElement | null,
+			hasAnimation: false,
+			animation: {},
 		};
 	},
 	methods: {
@@ -62,9 +82,30 @@ export default {
 			// if not ignored, texture hasn't been made
 			else this.exists = false;
 		},
+		async fetchAnimation() {
+			try {
+				const res = await axios.get(`${this.src}.mcmeta`);
+				this.hasAnimation = true;
+				this.animation = res.data;
+			} catch {
+				this.hasAnimation = false;
+			}
+		},
 	},
 	created() {
-		this.imageURL = this.src;
+		const image = this.$refs.imageRef ?? new Image() as HTMLImageElement;
+		image.src = this.src;
+
+		image.onload = () => {
+			// avoid (almost all) unnecessary requests
+			// and make sure the image is square
+			if (image.height % image.width === 0 && image.height !== image.width) {
+				this.fetchAnimation();
+			}
+		};
+		image.onerror = () => {
+			this.textureNotFound();
+		};
 	},
 };
 </script>
