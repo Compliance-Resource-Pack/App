@@ -4,23 +4,26 @@
 		:style="exists ? {} : { background: 'rgba(0,0,0,0.3)' }"
 	>
 		<!-- send click events back to caller -->
-		<img
-			v-if="exists && !hasAnimation"
-			class="gallery-texture-image"
-			ref="imageRef"
-			style="aspect-ratio: 1"
-			@error="textureNotFound"
-			@click="$emit('click')"
-			:src="imageURL"
-			lazy-src="https://database.faithfulpack.net/images/bot/loading.gif"
-		/>
 		<gallery-animation
-			v-else-if="exists && hasAnimation"
+			v-if="exists && hasAnimation"
 			class="gallery-texture-image"
 			:src="imageURL"
 			:mcmeta="animation"
 			:isTiled="imageURL.includes('_flow')"
 			@click="$emit('click')"
+		/>
+		<img
+			v-if="exists"
+			class="gallery-texture-image"
+			ref="imageRef"
+			:style="{ 
+				aspectRatio: 1, 
+				opacity: hasAnimation ? 0 : 1 // allow the texture to be copied even if animation is present
+			}"
+			@error="textureNotFound"
+			@click="$emit('click')"
+			:src="imageURL"
+			lazy-src="https://database.faithfulpack.net/images/bot/loading.gif"
 		/>
 		<div v-else class="not-done">
 			<span style="height: 100%" />
@@ -60,7 +63,7 @@ export default {
 		},
 		// saves a request on every gallery image to provide it once
 		ignoreList: {
-			type: Array,
+			type: Array as () => string[],
 			required: false,
 			default: () => [],
 		},
@@ -84,7 +87,8 @@ export default {
 		},
 		async fetchAnimation() {
 			try {
-				const res = await axios.get(`${this.src}.mcmeta`);
+				const res = await axios.get(`${this.imageURL}.mcmeta`);
+
 				this.hasAnimation = true;
 				this.animation = res.data;
 			} catch {
@@ -93,7 +97,7 @@ export default {
 		},
 	},
 	created() {
-		const image = this.$refs.imageRef ?? new Image() as HTMLImageElement;
+		const image = new Image() as HTMLImageElement;
 		image.src = this.src;
 
 		image.onload = () => {
