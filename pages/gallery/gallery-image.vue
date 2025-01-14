@@ -4,13 +4,25 @@
 		:style="exists ? {} : { background: 'rgba(0,0,0,0.3)' }"
 	>
 		<!-- send click events back to caller -->
+		<gallery-animation
+			v-if="exists && hasAnimation"
+			class="gallery-texture-image"
+			:src="imageURL"
+			:mcmeta="animation"
+			:isTiled="imageURL.includes('_flow')"
+			@click="$emit('click')"
+		/>
 		<img
 			v-if="exists"
 			class="gallery-texture-image"
-			:src="imageURL"
-			style="aspect-ratio: 1"
+			ref="imageRef"
+			:style="{ 
+				aspectRatio: 1, 
+				opacity: hasAnimation ? 0 : 1 // allow the texture to be copied even if animation is present
+			}"
 			@error="textureNotFound"
 			@click="$emit('click')"
+			:src="imageURL"
 			lazy-src="https://database.faithfulpack.net/images/bot/loading.gif"
 		/>
 		<div v-else class="not-done">
@@ -23,10 +35,18 @@
 	</div>
 </template>
 
-<script>
+<script lang="ts">
+/* global settings */
+import axios from "axios";
+
+import GalleryAnimation from "./gallery-animation.vue";
+
 // separate component to track state more easily
 export default {
-	name: "gallery-image",
+	name: "gallery-image", 
+	components: {
+		GalleryAnimation,
+	},
 	props: {
 		src: {
 			type: String,
@@ -43,7 +63,7 @@ export default {
 		},
 		// saves a request on every gallery image to provide it once
 		ignoreList: {
-			type: Array,
+			type: Array as () => string[],
 			required: false,
 			default: () => [],
 		},
@@ -51,7 +71,10 @@ export default {
 	data() {
 		return {
 			exists: true,
-			imageURL: "",
+			imageURL: this.src,
+			imageRef: null as HTMLImageElement | null,
+			hasAnimation: false,
+			animation: {},
 		};
 	},
 	methods: {
@@ -62,9 +85,31 @@ export default {
 			// if not ignored, texture hasn't been made
 			else this.exists = false;
 		},
+		async fetchAnimation() {
+			try {
+				const res = await axios.get(`${this.imageURL}.mcmeta`);
+
+				this.hasAnimation = true;
+				this.animation = res.data;
+			} catch {
+				this.hasAnimation = false;
+			}
+		},
 	},
 	created() {
-		this.imageURL = this.src;
+		const image = new Image() as HTMLImageElement;
+		image.src = this.src;
+
+		image.onload = () => {
+			// avoid (almost all) unnecessary requests
+			// and make sure the image is square
+			if (image.height % image.width === 0 && image.height !== image.width) {
+				this.fetchAnimation();
+			}
+		};
+		image.onerror = () => {
+			this.textureNotFound();
+		};
 	},
 };
 </script>
