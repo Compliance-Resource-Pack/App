@@ -65,6 +65,7 @@
 					:error-messages="
 						content.length === 0 ? [$root.lang('database.subtitles.no_contributor_yet')] : []
 					"
+					@newUsers="(l) => this.$emit('newUser', l) "
 				/>
 			</v-col>
 		</v-row>
